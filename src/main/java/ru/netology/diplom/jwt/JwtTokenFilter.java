@@ -1,68 +1,41 @@
 package ru.netology.diplom.jwt;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.SneakyThrows;
-import org.springframework.http.HttpHeaders;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
-import ru.netology.diplom.repository.UserRepository;
+import org.springframework.web.filter.GenericFilterBean;
+import ru.netology.diplom.repository.SecurityRepository;
 
-import java.util.List;
+import java.io.IOException;
 
-import static org.springframework.util.StringUtils.isEmpty;
-
+@Slf4j
 @Component
-public class JwtTokenFilter extends OncePerRequestFilter {
+@RequiredArgsConstructor
+public class JwtTokenFilter extends GenericFilterBean {
 
-    private final JwtTokenUtil jwtTokenUtil;
-    private final UserRepository userRepository;
+    private final SecurityRepository securityRepository;
 
-    public JwtTokenFilter(JwtTokenUtil jwtTokenUtil, UserRepository userRepository) {
-        this.jwtTokenUtil = jwtTokenUtil;
-        this.userRepository = userRepository;
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain fc)
+            throws IOException, ServletException {
+        final String token = getTokenFromRequest((HttpServletRequest) request);
+        if (token != null && securityRepository.validateToken(token)) {
+            final JwtAuthentication jwtInfoToken = new JwtAuthentication();
+            jwtInfoToken.setAuthenticated(true);
+            SecurityContextHolder.getContext().setAuthentication(jwtInfoToken);
+        }
+        fc.doFilter(request, response);
     }
 
-    @SneakyThrows
-    @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain chain) {
-        final String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (isEmpty(header) || !header.startsWith("Bearer ")) {
-            chain.doFilter(request, response);
-            return;
-        }
-
-        final String token = header.split(" ")[1].trim();
-
-        UserDetails userDetails = userRepository
-                .findByUsername(jwtTokenUtil.getUsernameFromToken(token));
-
-        if (!jwtTokenUtil.validate(token, userDetails)) {
-            chain.doFilter(request, response);
-            return;
-        }
-
-
-        UsernamePasswordAuthenticationToken
-                authentication = new UsernamePasswordAuthenticationToken(
-                userDetails, null,
-                userDetails == null ?
-                        List.of() : userDetails.getAuthorities()
-        );
-
-        authentication.setDetails(
-                new WebAuthenticationDetailsSource().buildDetails(request)
-        );
-
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        chain.doFilter(request, response);
+    private String getTokenFromRequest(HttpServletRequest request) {
+        return request.getHeader("auth-token");
     }
 
 

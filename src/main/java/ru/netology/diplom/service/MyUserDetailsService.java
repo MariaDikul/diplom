@@ -1,32 +1,26 @@
 package ru.netology.diplom.service;
 
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
-import ru.netology.diplom.repository.User;
+import ru.netology.diplom.domain.User;
+import ru.netology.diplom.exception.UnauthorizedException;
 import ru.netology.diplom.repository.UserRepository;
 
-import java.sql.SQLException;
-
 @Service
+@AllArgsConstructor
+@Slf4j
 public class MyUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    public MyUserDetailsService(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
-
     @Override
     public UserDetails loadUserByUsername(String username) {
-        User user;
-        try {
-            user = userRepository.findByUsername(username);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        User user = userRepository.findByUsername(username);
         if (user == null) {
-            throw new UsernameNotFoundException(username);
+            throw new UnauthorizedException("MyUserDetailsService Unauthorized");
         }
         return user;
     }
